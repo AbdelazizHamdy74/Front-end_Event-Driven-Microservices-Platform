@@ -13,7 +13,23 @@ export const routes: Routes = [
   {
     path: 'home',
     loadComponent: () =>
-      import('./pages/home/home-page.component').then((m) => m.HomePageComponent),
+      import('./pages/feed/feed-page.component').then((m) => m.FeedPageComponent),
+    canActivate: [authGuard],
+  },
+  {
+    path: 'profile/me',
+    loadComponent: () =>
+      import('./pages/profile/profile-me-page.component').then(
+        (m) => m.ProfileMePageComponent,
+      ),
+    canActivate: [authGuard],
+  },
+  {
+    path: 'profile/:id',
+    loadComponent: () =>
+      import('./pages/profile/profile-user-page.component').then(
+        (m) => m.ProfileUserPageComponent,
+      ),
     canActivate: [authGuard],
   },
   { path: '**', redirectTo: 'home' },
