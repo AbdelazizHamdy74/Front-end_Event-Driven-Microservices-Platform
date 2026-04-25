@@ -18,6 +18,21 @@ export interface PostDto {
   updated_at: string;
 }
 
+export interface LikeCountDto {
+  postId: number;
+  count: number;
+}
+
+export interface CommentDto {
+  id: number;
+  post_id: number;
+  post_owner_id: number;
+  user_id: number;
+  content: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export type FriendshipStatus =
   | 'SELF'
   | 'NONE'
