@@ -152,8 +152,9 @@ export class ProfileUserPageComponent {
     const s = this.status();
     if (s === 'NONE') return 'Add friend';
     if (s === 'REQUEST_RECEIVED') return 'Accept request';
-    if (s === 'REQUEST_SENT') return 'Cancel (reject)';
-    if (s === 'FRIENDS') return 'Unfriend (block)';
+    if (s === 'REQUEST_SENT') return 'Cancel request';
+    if (s === 'FRIENDS') return 'Block';
+    if (s === 'BLOCKED_BY_ME') return 'Unblock';
     return null;
   });
 
@@ -211,11 +212,15 @@ export class ProfileUserPageComponent {
       return;
     }
     if (current === 'REQUEST_SENT') {
-      this.friendshipsApi.rejectRequest(targetId).subscribe({ next: done, error: done });
+      this.friendshipsApi.cancelRequest(targetId).subscribe({ next: done, error: done });
       return;
     }
     if (current === 'FRIENDS') {
       this.friendshipsApi.blockUser(targetId).subscribe({ next: done, error: done });
+      return;
+    }
+    if (current === 'BLOCKED_BY_ME') {
+      this.friendshipsApi.unblockUser(targetId).subscribe({ next: done, error: done });
       return;
     }
 

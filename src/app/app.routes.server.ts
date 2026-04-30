@@ -5,6 +5,7 @@ export const serverRoutes: ServerRoute[] = [
   { path: 'home', renderMode: RenderMode.Client },
   { path: 'profile/me', renderMode: RenderMode.Client },
   { path: 'profile/:id', renderMode: RenderMode.Client },
+  { path: 'friends/requests', renderMode: RenderMode.Client },
   {
     path: '**',
     renderMode: RenderMode.Prerender,

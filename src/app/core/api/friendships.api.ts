@@ -4,6 +4,12 @@ import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import type { FriendDto, FriendshipStatus } from './api.models';
 
+export interface FriendRequestDto {
+  userId: number;
+  name: string | null;
+  direction: 'received' | 'sent';
+}
+
 @Injectable({ providedIn: 'root' })
 export class FriendshipsApi {
   private readonly http = inject(HttpClient);
@@ -20,6 +26,12 @@ export class FriendshipsApi {
     return this.http.get<{ status: FriendshipStatus }>(this.url(`/status/${userId}`));
   }
 
+  getRequests(direction: 'received' | 'sent' = 'received'): Observable<FriendRequestDto[]> {
+    return this.http.get<FriendRequestDto[]>(this.url('/requests'), {
+      params: { direction },
+    });
+  }
+
   sendRequest(userId: number, userName?: string): Observable<{ message: string }> {
     return this.http.post<{ message: string }>(this.url(`/requests/${userId}`), {
       userName,
@@ -34,6 +46,12 @@ export class FriendshipsApi {
 
   rejectRequest(userId: number, userName?: string): Observable<{ message: string }> {
     return this.http.post<{ message: string }>(this.url(`/requests/${userId}/reject`), {
+      userName,
+    });
+  }
+
+  cancelRequest(userId: number, userName?: string): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>(this.url(`/requests/${userId}/cancel`), {
       userName,
     });
   }

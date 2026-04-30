@@ -32,5 +32,13 @@ export const routes: Routes = [
       ),
     canActivate: [authGuard],
   },
+  {
+    path: 'friends/requests',
+    loadComponent: () =>
+      import('./pages/friends/friend-requests-page.component').then(
+        (m) => m.FriendRequestsPageComponent,
+      ),
+    canActivate: [authGuard],
+  },
   { path: '**', redirectTo: 'home' },
 ];

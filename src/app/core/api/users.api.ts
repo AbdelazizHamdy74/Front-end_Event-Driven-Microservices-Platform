@@ -15,5 +15,11 @@ export class UsersApi {
   getUserById(id: number): Observable<UserDto> {
     return this.http.get<UserDto>(this.url(`/${id}`));
   }
+
+  searchUsers(q: string, limit = 10): Observable<UserDto[]> {
+    return this.http.get<UserDto[]>(this.url('/search'), {
+      params: { q, limit },
+    });
+  }
 }
 
