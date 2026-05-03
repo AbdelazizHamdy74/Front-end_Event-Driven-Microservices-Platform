@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
 import { finalize, firstValueFrom } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
@@ -9,7 +10,9 @@ import { PostsApi } from '../../core/api/posts.api';
 import { LikesApi } from '../../core/api/likes.api';
 import { CommentsApi } from '../../core/api/comments.api';
 import { UsersApi } from '../../core/api/users.api';
-import type { CommentDto, PostDto, UserDto } from '../../core/api/api.models';
+import { ChatsApi } from '../../core/api/chats.api';
+import { ChatRealtimeService } from '../../core/realtime/chat-realtime.service';
+import type { CommentDto, MessageRequestDto, PostDto, UserDto } from '../../core/api/api.models';
 import type { FriendRequestDto } from '../../core/api/friendships.api';
 
 type ReactionType = 'like' | 'love';
@@ -33,6 +36,21 @@ type ViewPost = PostDto & {
   imports: [CommonModule, RouterLink],
   template: `
     <div class="min-h-svh bg-[#fafafa]">
+      @if (realtime.toast(); as toast) {
+        <div
+          class="fixed bottom-4 left-1/2 z-50 flex max-w-md -translate-x-1/2 items-center gap-3 rounded-2xl border border-black/10 bg-[#1c1e21] px-4 py-3 text-sm text-white shadow-xl"
+          role="status"
+        >
+          <span class="flex-1">{{ toast.message }}</span>
+          <button
+            type="button"
+            (click)="dismissNotifToast()"
+            class="shrink-0 rounded-lg bg-white/15 px-3 py-1 text-xs font-semibold hover:bg-white/25"
+          >
+            Dismiss
+          </button>
+        </div>
+      }
       <header class="sticky top-0 z-10 border-b border-black/8 bg-white">
         <div class="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
           <a
@@ -123,6 +141,21 @@ type ViewPost = PostDto & {
                 </span>
               }
             </a>
+            <button
+              type="button"
+              (click)="acknowledgeAlerts()"
+              class="relative rounded-full bg-[#f0f2f5] px-3 py-2 text-sm font-semibold text-[#1c1e21] hover:bg-[#e4e6eb]"
+              aria-label="Live alerts"
+            >
+              Alerts
+              @if (realtime.unreadBellCount() > 0) {
+                <span
+                  class="absolute -right-1 -top-1 inline-flex min-w-5 items-center justify-center rounded-full bg-[#1877f2] px-1.5 py-0.5 text-[11px] font-bold leading-none text-white"
+                >
+                  {{ realtime.unreadBellCount() }}
+                </span>
+              }
+            </button>
             <a
               routerLink="/profile/me"
               class="rounded-full bg-[#f0f2f5] px-3 py-2 text-sm font-semibold text-[#1c1e21] hover:bg-[#e4e6eb]"
@@ -414,21 +447,72 @@ type ViewPost = PostDto & {
           </div>
 
           <div class="rounded-2xl border border-black/6 bg-white p-4">
+            <div class="flex items-center justify-between">
+              <div class="text-sm font-semibold text-[#1c1e21]">Message requests</div>
+              <button
+                type="button"
+                class="text-xs font-semibold text-[#1877f2] hover:underline"
+                (click)="loadMessageRequests()"
+              >
+                Refresh
+              </button>
+            </div>
+            <div class="mt-3 space-y-2">
+              @if (messageRequests().length === 0) {
+                <div class="text-sm text-[#65676b]">No pending requests.</div>
+              }
+              @for (r of messageRequests(); track r.id) {
+                <div class="rounded-xl border border-black/5 p-3">
+                  <div class="text-xs text-[#65676b]">From user #{{ r.fromUserId }}</div>
+                  <div class="mt-1 whitespace-pre-wrap text-sm text-[#1c1e21]">{{ r.content }}</div>
+                  <div class="mt-3 flex gap-2">
+                    <button
+                      type="button"
+                      (click)="acceptMsgReq(r.fromUserId)"
+                      class="flex-1 rounded-xl bg-[#1877f2] px-3 py-2 text-sm font-semibold text-white hover:bg-[#166fe5]"
+                    >
+                      Accept
+                    </button>
+                    <button
+                      type="button"
+                      (click)="declineMsgReq(r.fromUserId)"
+                      class="flex-1 rounded-xl bg-[#f0f2f5] px-3 py-2 text-sm font-semibold text-[#1c1e21] hover:bg-[#e4e6eb]"
+                    >
+                      Decline
+                    </button>
+                  </div>
+                </div>
+              }
+            </div>
+          </div>
+
+          <div class="rounded-2xl border border-black/6 bg-white p-4">
             <div class="text-sm font-semibold text-[#1c1e21]">Friends</div>
             <div class="mt-3 space-y-2">
               @if (friends().length === 0) {
                 <div class="text-sm text-[#65676b]">No friends yet.</div>
               }
               @for (f of friends(); track f.id) {
-                <a
-                  class="flex items-center justify-between rounded-xl px-3 py-2 hover:bg-[#f0f2f5]"
-                  [routerLink]="['/profile', f.id]"
+                <div
+                  class="flex items-center justify-between gap-2 rounded-xl px-3 py-2 hover:bg-[#f0f2f5]"
                 >
-                  <span class="truncate text-sm text-[#1c1e21]">
+                  <a
+                    class="min-w-0 flex-1 truncate text-sm font-medium text-[#1c1e21] hover:underline"
+                    [routerLink]="['/profile', f.id]"
+                  >
                     {{ f.name || ('User #' + f.id) }}
-                  </span>
-                  <span class="text-xs text-[#8a8d91]">View</span>
-                </a>
+                  </a>
+                  <div class="flex shrink-0 items-center gap-2 text-xs">
+                    <a
+                      class="text-[#8a8d91] hover:text-[#1877f2]"
+                      [routerLink]="['/profile', f.id]"
+                      >View</a>
+                    <a
+                      class="font-semibold text-[#1877f2] hover:underline"
+                      [routerLink]="['/chat', f.id]"
+                      >Message</a>
+                  </div>
+                </div>
               }
             </div>
           </div>
@@ -445,6 +529,8 @@ export class FeedPageComponent {
   private readonly likesApi = inject(LikesApi);
   private readonly commentsApi = inject(CommentsApi);
   private readonly usersApi = inject(UsersApi);
+  private readonly chatsApi = inject(ChatsApi);
+  protected readonly realtime = inject(ChatRealtimeService);
 
   protected readonly loading = signal(true);
   protected readonly posting = signal(false);
@@ -452,6 +538,7 @@ export class FeedPageComponent {
 
   protected readonly friends = signal<Array<{ id: number; name: string | null }>>([]);
   protected readonly friendRequests = signal<FriendRequestDto[]>([]);
+  protected readonly messageRequests = signal<MessageRequestDto[]>([]);
   protected readonly requestsBusy = signal<Record<number, boolean>>({});
   protected readonly feedPosts = signal<ViewPost[]>([]);
   protected readonly composerText = signal('');
@@ -467,7 +554,41 @@ export class FeedPageComponent {
   private searchDebounceId: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
+    this.realtime.ensureConnected();
     this.refreshFeed();
+    this.realtime.messageRequestReceived$
+      .pipe(takeUntilDestroyed())
+      .subscribe(() => this.loadMessageRequests());
+  }
+
+  protected dismissNotifToast(): void {
+    this.realtime.dismissToast();
+  }
+
+  protected acknowledgeAlerts(): void {
+    this.realtime.clearBell();
+    this.realtime.dismissToast();
+  }
+
+  protected loadMessageRequests(): void {
+    this.chatsApi.listIncomingMessageRequests().subscribe({
+      next: (rows) => this.messageRequests.set(rows),
+      error: () => this.messageRequests.set([]),
+    });
+  }
+
+  protected acceptMsgReq(fromUserId: number): void {
+    this.chatsApi.acceptMessageRequest(fromUserId).subscribe({
+      next: () => this.loadMessageRequests(),
+      error: () => this.loadMessageRequests(),
+    });
+  }
+
+  protected declineMsgReq(fromUserId: number): void {
+    this.chatsApi.declineMessageRequest(fromUserId).subscribe({
+      next: () => this.loadMessageRequests(),
+      error: () => this.loadMessageRequests(),
+    });
   }
 
   protected refreshFeed(): void {
@@ -481,11 +602,13 @@ export class FeedPageComponent {
           const ids = friends.map((f) => f.id);
           this.loadFeed(ids);
           this.loadFriendRequests();
+          this.loadMessageRequests();
         },
         error: () => {
           // still try loading my posts
           this.loadFeed([]);
           this.loadFriendRequests();
+          this.loadMessageRequests();
         },
       });
   }

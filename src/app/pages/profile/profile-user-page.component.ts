@@ -1,9 +1,10 @@
 import { CommonModule } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { finalize } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
 import { FriendshipsApi } from '../../core/api/friendships.api';
+import { ChatsApi } from '../../core/api/chats.api';
 import { PostsApi } from '../../core/api/posts.api';
 import { UsersApi } from '../../core/api/users.api';
 import type { FriendshipStatus, PostDto, UserDto } from '../../core/api/api.models';
@@ -39,6 +40,48 @@ import type { FriendshipStatus, PostDto, UserDto } from '../../core/api/api.mode
         </div>
       </header>
 
+      @if (inmailOpen()) {
+        <div
+          class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div class="w-full max-w-md rounded-2xl border border-black/10 bg-white p-5 shadow-xl">
+            <div class="text-sm font-semibold text-[#1c1e21]">Request to message</div>
+            <p class="mt-1 text-xs text-[#65676b]">
+              They will get a notification and can accept to open a chat (without being friends).
+            </p>
+            <textarea
+              rows="4"
+              class="mt-3 w-full resize-none rounded-xl border border-[#ccd0d5] px-3 py-2 text-sm outline-none focus:border-[#1877f2] focus:ring-2 focus:ring-[#1877f2]/20"
+              [value]="inmailDraft()"
+              (input)="inmailDraft.set(($any($event.target).value ?? '').toString())"
+              placeholder="Introduce yourself briefly…"
+            ></textarea>
+            @if (inmailError()) {
+              <div class="mt-2 text-sm text-red-700">{{ inmailError() }}</div>
+            }
+            <div class="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                (click)="closeInmail()"
+                class="rounded-xl bg-[#f0f2f5] px-4 py-2 text-sm font-semibold text-[#1c1e21] hover:bg-[#e4e6eb]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                (click)="submitInmail()"
+                [disabled]="inmailBusy() || !inmailDraft().trim()"
+                class="rounded-xl bg-[#1877f2] px-4 py-2 text-sm font-semibold text-white hover:bg-[#166fe5] disabled:opacity-50"
+              >
+                {{ inmailBusy() ? 'Sending…' : 'Send request' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      }
+
       <main class="mx-auto max-w-6xl px-4 py-6">
         <section class="overflow-hidden rounded-2xl border border-black/6 bg-white">
           <div class="h-36 bg-[#fff1f2]"></div>
@@ -60,7 +103,24 @@ import type { FriendshipStatus, PostDto, UserDto } from '../../core/api/api.mode
                 </div>
               </div>
 
-              <div class="flex items-center gap-2">
+              <div class="flex flex-wrap items-center justify-end gap-2">
+                @if (status() === 'FRIENDS') {
+                  <a
+                    [routerLink]="['/chat', userId()]"
+                    class="rounded-xl border border-[#ccd0d5] bg-white px-4 py-2 text-sm font-semibold text-[#1877f2] hover:bg-[#f0f2f5]"
+                  >
+                    Message
+                  </a>
+                }
+                @if (status() === 'NONE') {
+                  <button
+                    type="button"
+                    (click)="openInmail()"
+                    class="rounded-xl border border-[#ccd0d5] bg-white px-4 py-2 text-sm font-semibold text-[#1c1e21] hover:bg-[#f0f2f5]"
+                  >
+                    Request to message
+                  </button>
+                }
                 @if (actionLabel()) {
                   <button
                     type="button"
@@ -123,13 +183,19 @@ import type { FriendshipStatus, PostDto, UserDto } from '../../core/api/api.mode
 })
 export class ProfileUserPageComponent {
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly auth = inject(AuthService);
   private readonly usersApi = inject(UsersApi);
   private readonly postsApi = inject(PostsApi);
   private readonly friendshipsApi = inject(FriendshipsApi);
+  private readonly chatsApi = inject(ChatsApi);
 
   protected readonly loading = signal(true);
   protected readonly actionBusy = signal(false);
+  protected readonly inmailOpen = signal(false);
+  protected readonly inmailDraft = signal('');
+  protected readonly inmailBusy = signal(false);
+  protected readonly inmailError = signal<string | null>(null);
   protected readonly userInfo = signal<UserDto | null>(null);
   protected readonly posts = signal<PostDto[]>([]);
   protected readonly status = signal<FriendshipStatus>('NONE');
@@ -186,6 +252,36 @@ export class ProfileUserPageComponent {
         next: (p) => this.posts.set(p),
         error: () => this.posts.set([]),
       });
+  }
+
+  protected openInmail(): void {
+    this.inmailError.set(null);
+    this.inmailDraft.set('');
+    this.inmailOpen.set(true);
+  }
+
+  protected closeInmail(): void {
+    this.inmailOpen.set(false);
+    this.inmailBusy.set(false);
+  }
+
+  protected submitInmail(): void {
+    const targetId = this.userId();
+    const text = this.inmailDraft().trim();
+    if (!targetId || !text) return;
+    this.inmailBusy.set(true);
+    this.inmailError.set(null);
+    this.chatsApi.sendMessageRequest(targetId, text).subscribe({
+      next: () => {
+        this.inmailBusy.set(false);
+        this.closeInmail();
+        void this.router.navigate(['/home']);
+      },
+      error: (err) => {
+        this.inmailBusy.set(false);
+        this.inmailError.set(err?.error?.message || 'Could not send request.');
+      },
+    });
   }
 
   protected performAction(): void {

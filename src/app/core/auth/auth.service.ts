@@ -5,12 +5,14 @@ import { Observable, catchError, map, of, switchMap, tap, throwError } from 'rxj
 import { environment } from '../../../environments/environment';
 import type { AuthUser, LoginResponse, SessionResponse, SignupResponse } from './auth.models';
 import { TokenStorage } from './token-storage';
+import { ChatRealtimeService } from '../realtime/chat-realtime.service';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly http = inject(HttpClient);
   private readonly router = inject(Router);
   private readonly tokenStorage = inject(TokenStorage);
+  private readonly chatRealtime = inject(ChatRealtimeService);
 
   private readonly userSignal = signal<AuthUser | null>(null);
 
@@ -44,7 +46,10 @@ export class AuthService {
 
   login(email: string, password: string): Observable<void> {
     return this.http.post<LoginResponse>(this.authUrl('/login'), { email, password }).pipe(
-      tap((res) => this.tokenStorage.setToken(res.token)),
+      tap((res) => {
+        this.chatRealtime.disconnect();
+        this.tokenStorage.setToken(res.token);
+      }),
       switchMap(() => this.http.get<SessionResponse>(this.authUrl('/session'))),
       tap((res) => this.userSignal.set(res.user)),
       map(() => undefined),
@@ -67,6 +72,7 @@ export class AuthService {
   }
 
   private clearLocalAuth(): void {
+    this.chatRealtime.disconnect();
     this.tokenStorage.clearToken();
     this.userSignal.set(null);
   }

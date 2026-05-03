@@ -42,3 +42,38 @@ export type FriendshipStatus =
   | 'BLOCKED_BY_ME'
   | 'BLOCKED_BY_OTHER';
 
+export interface ChatMessageDto {
+  id: number;
+  conversationId: number;
+  conversationName: string | null;
+  fromUserId: number;
+  fromUserName: string | null;
+  toUserId: number;
+  toUserName: string | null;
+  content: string;
+  createdAt: string;
+}
+
+export interface ConversationSummaryDto {
+  conversationId: number;
+  conversationName: string | null;
+  otherUserId: number;
+  otherUserName: string | null;
+  lastMessage: {
+    id: number;
+    content: string;
+    senderName: string | null;
+    receiverName: string | null;
+    createdAt: string;
+  } | null;
+}
+
+export interface MessageRequestDto {
+  id: number;
+  fromUserId: number;
+  toUserId: number;
+  content: string;
+  status: string;
+  createdAt: string;
+}
+

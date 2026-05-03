@@ -40,5 +40,11 @@ export const routes: Routes = [
       ),
     canActivate: [authGuard],
   },
+  {
+    path: 'chat/:id',
+    loadComponent: () =>
+      import('./pages/chat/chat-page.component').then((m) => m.ChatPageComponent),
+    canActivate: [authGuard],
+  },
   { path: '**', redirectTo: 'home' },
 ];
